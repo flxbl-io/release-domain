@@ -1,4 +1,4 @@
-name: "Release"
+name: "Release Domain"
 description: "Deploy a release candidate to a target environment"
 author: "flxbl-io"
 
@@ -62,7 +62,7 @@ runs:
         echo "------------------------------------------------------------------------------------------"
         echo "flxbl-actions  -- ❤️  by flxbl.io ❤️  -Version:1.0.0"
         echo "------------------------------------------------------------------------------------------"
-        echo "Action        : release"
+        echo "Action        : release-domain"
         echo "Repository    : ${{ inputs.repository }}"
         echo "Environment   : ${{ inputs.environment }}"
         echo "Release Candidate: ${{ inputs.release-candidate }}"

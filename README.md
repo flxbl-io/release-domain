@@ -5,7 +5,7 @@ Deploy a release candidate to a target Salesforce environment via SFP Server.
 ## Usage
 
 ```yaml
-- uses: flxbl-io/release@v1
+- uses: flxbl-io/release-domain@v1
   with:
     sfp-server-url: ${{ secrets.SFP_SERVER_URL }}
     sfp-server-token: ${{ secrets.SFP_SERVER_TOKEN }}
@@ -56,7 +56,7 @@ jobs:
     runs-on: ubuntu-latest
     container: ghcr.io/flxbl-io/sfops:latest
     steps:
-      - uses: flxbl-io/release@v1
+      - uses: flxbl-io/release-domain@v1
         with:
           sfp-server-url: ${{ secrets.SFP_SERVER_URL }}
           sfp-server-token: ${{ secrets.SFP_SERVER_TOKEN }}
@@ -70,7 +70,7 @@ jobs:
 You can exclude specific packages or override their versions without modifying the release candidate on the server:
 
 ```yaml
-- uses: flxbl-io/release@v1
+- uses: flxbl-io/release-domain@v1
   with:
     sfp-server-url: ${{ secrets.SFP_SERVER_URL }}
     sfp-server-token: ${{ secrets.SFP_SERVER_TOKEN }}
