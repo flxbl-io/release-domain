@@ -53,7 +53,7 @@ inputs:
   lock-timeout:
     description: "Minutes to wait for lock acquisition (0 = wait indefinitely)"
     required: false
-    default: "15"
+    default: "120"
   lock-duration:
     description: "Duration in minutes to hold the lock"
     required: false

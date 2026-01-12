@@ -330,7 +330,7 @@ export async function run(): Promise<void> {
       excludePackages: core.getInput('exclude-packages') || '',
       overridePackages: core.getInput('override-packages') || '',
       lock: core.getInput('lock') !== 'false',
-      lockTimeout: core.getInput('lock-timeout') || '15',
+      lockTimeout: core.getInput('lock-timeout') || '120',
       lockDuration: core.getInput('lock-duration') || '120',
       dryRun: core.getInput('dry-run') === 'true'
     };
