@@ -14,6 +14,8 @@
 #   sfp-server-url=<url>        Override SFP Server URL (default: auto-detect)
 #   sfp-server-token=<token>    Override SFP Server token (default: dev token)
 #   repository=<owner/repo>     Repository identifier (default: derived from project path)
+#   exclude-packages=<list>     Comma-separated packages to exclude
+#   override-packages=<list>    Comma-separated version overrides (pkg=version)
 
 set -e
 
@@ -36,6 +38,8 @@ ENVIRONMENT=""
 RELEASE_CANDIDATE=""
 DOMAIN=""
 REPOSITORY="$(basename $(dirname $PROJECT_PATH))/$(basename $PROJECT_PATH)"
+EXCLUDE_PACKAGES=""
+OVERRIDE_PACKAGES=""
 
 # Parse arguments (override .env / auto-detected values)
 for arg in "$@"; do
@@ -48,6 +52,8 @@ for arg in "$@"; do
     release-candidate) RELEASE_CANDIDATE="$val" ;;
     domain) DOMAIN="$val" ;;
     repository) REPOSITORY="$val" ;;
+    exclude-packages) EXCLUDE_PACKAGES="$val" ;;
+    override-packages) OVERRIDE_PACKAGES="$val" ;;
   esac
 done
 
@@ -64,6 +70,17 @@ trap "rm -rf $TEMP_DIR $PROJECT_PATH/.github/actions/release" EXIT
 
 mkdir -p "$PROJECT_PATH/.github/actions"
 cp -r "$SCRIPT_DIR" "$PROJECT_PATH/.github/actions/release"
+
+# Build optional inputs
+OPTIONAL_INPUTS=""
+if [[ -n "$EXCLUDE_PACKAGES" ]]; then
+  OPTIONAL_INPUTS="${OPTIONAL_INPUTS}
+          exclude-packages: \"$EXCLUDE_PACKAGES\""
+fi
+if [[ -n "$OVERRIDE_PACKAGES" ]]; then
+  OPTIONAL_INPUTS="${OPTIONAL_INPUTS}
+          override-packages: \"$OVERRIDE_PACKAGES\""
+fi
 
 # Create workflow using local image
 cat > "$TEMP_DIR/test.yml" << EOF
@@ -82,7 +99,7 @@ jobs:
           environment: "$ENVIRONMENT"
           release-candidate: "$RELEASE_CANDIDATE"
           domain: "$DOMAIN"
-          repository: "$REPOSITORY"
+          repository: "$REPOSITORY"$OPTIONAL_INPUTS
 EOF
 
 cat > "$TEMP_DIR/.secrets" << EOF
@@ -97,5 +114,11 @@ echo "  Server: $SFP_SERVER_URL"
 echo "  Environment: $ENVIRONMENT"
 echo "  Release Candidate: $RELEASE_CANDIDATE"
 echo "  Domain: $DOMAIN"
+if [[ -n "$EXCLUDE_PACKAGES" ]]; then
+  echo "  Exclude: $EXCLUDE_PACKAGES"
+fi
+if [[ -n "$OVERRIDE_PACKAGES" ]]; then
+  echo "  Override: $OVERRIDE_PACKAGES"
+fi
 echo ""
 act push -W "$TEMP_DIR/test.yml" --secret-file "$TEMP_DIR/.secrets" --pull=false
