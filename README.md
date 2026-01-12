@@ -1,6 +1,6 @@
-# Release Action
+# Release Domain
 
-Deploy a release candidate to a target Salesforce environment via SFP Server.
+Deploy a release candidate to a target Salesforce environment via SFP Server with automatic environment locking.
 
 ## Usage
 
@@ -13,6 +13,13 @@ Deploy a release candidate to a target Salesforce environment via SFP Server.
     release-candidate: "main-12345"
     domain: "core"
 ```
+
+## Features
+
+- **Automatic Environment Locking** - Locks the environment before deployment and automatically unlocks on completion (success or failure)
+- **Package Exclusions** - Exclude specific packages from deployment without modifying the release candidate
+- **Version Overrides** - Override package versions for hotfixes or rollbacks
+- **Dry-Run Mode** - Test the deployment configuration without making changes
 
 ## Inputs
 
@@ -29,12 +36,17 @@ Deploy a release candidate to a target Salesforce environment via SFP Server.
 | `tag` | No | - | Tag the release for identification in metrics |
 | `exclude-packages` | No | - | Comma-separated list of packages to exclude (e.g., `pkg-a,pkg-b`) |
 | `override-packages` | No | - | Comma-separated package version overrides (e.g., `pkg-a=1.2.3,pkg-b=2.0.0`) |
+| `lock` | No | `true` | Lock environment before release (auto-unlock on completion) |
+| `lock-timeout` | No | `15` | Minutes to wait for lock acquisition (0 = wait indefinitely) |
+| `lock-duration` | No | `120` | Duration in minutes to hold the lock |
+| `dry-run` | No | `false` | Dry-run mode (no lock, no deploy) |
 
 ## Outputs
 
 | Output | Description |
 |--------|-------------|
-| `deployment-status` | Status of the deployment (`success`/`failed`) |
+| `deployment-status` | Status of the deployment (`success`/`failed`/`dry-run`) |
+| `ticket-id` | Lock ticket ID (if locking was enabled) |
 
 ## Example Workflow
 
@@ -65,9 +77,11 @@ jobs:
           domain: ${{ inputs.domain }}
 ```
 
-## Advanced Usage - Package Exclusions and Overrides
+## Advanced Usage
 
-You can exclude specific packages or override their versions without modifying the release candidate on the server:
+### Package Exclusions and Overrides
+
+Exclude specific packages or override their versions without modifying the release candidate on the server:
 
 ```yaml
 - uses: flxbl-io/release-domain@v1
@@ -83,20 +97,50 @@ You can exclude specific packages or override their versions without modifying t
     override-packages: "core-utils=1.5.2,auth-module=2.0.1"
 ```
 
-This approach fetches the release candidate, modifies it locally, and deploys the modified version - without changing the canonical release candidate stored on the server.
+### Disable Auto-Lock
+
+For scenarios where locking is managed separately:
+
+```yaml
+- uses: flxbl-io/release-domain@v1
+  with:
+    sfp-server-url: ${{ secrets.SFP_SERVER_URL }}
+    sfp-server-token: ${{ secrets.SFP_SERVER_TOKEN }}
+    environment: staging
+    release-candidate: main-12345
+    domain: core
+    lock: false  # Disable auto-locking
+```
+
+### Dry-Run Mode
+
+Test the configuration without making any changes:
+
+```yaml
+- uses: flxbl-io/release-domain@v1
+  with:
+    sfp-server-url: ${{ secrets.SFP_SERVER_URL }}
+    sfp-server-token: ${{ secrets.SFP_SERVER_TOKEN }}
+    environment: staging
+    release-candidate: main-12345
+    domain: core
+    dry-run: true
+```
 
 ## How It Works
 
-1. **Authenticates to DevHub** - Required for unlocked package installations
-2. **Authenticates to target environment** - Using SFP Server credentials
-3. **Prepares release definition** - If exclusions/overrides specified, fetches and modifies the release definition
-4. **Deploys release candidate** - Fetches and installs packages from the release candidate
+1. **Locks Environment** - Acquires an exclusive lock on the target environment (if `lock: true`)
+2. **Authenticates to DevHub** - Required for unlocked package installations
+3. **Authenticates to Target Environment** - Using SFP Server credentials
+4. **Prepares Release Definition** - If exclusions/overrides specified, fetches and modifies the release definition
+5. **Deploys Release Candidate** - Fetches and installs packages from the release candidate
+6. **Auto-Unlocks** - Releases the environment lock on completion (success or failure)
 
 ## Related Actions
 
-- [flxbl-io/build](https://github.com/flxbl-io/build) - Build packages and create release candidates
-- [flxbl-io/lock-environment](https://github.com/flxbl-io/lock-environment) - Lock environment before deployment
-- [flxbl-io/unlock-environment](https://github.com/flxbl-io/unlock-environment) - Unlock environment after deployment
+- [flxbl-io/build-domain](https://github.com/flxbl-io/build-domain) - Build packages and create release candidates
+- [flxbl-io/auth-environment-with-lock](https://github.com/flxbl-io/auth-environment-with-lock) - Lock environment for custom workflows
+- [flxbl-io/unlock-environment](https://github.com/flxbl-io/unlock-environment) - Unlock environment manually
 
 ## License
 

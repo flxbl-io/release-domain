@@ -1,12 +1,19 @@
 {
   "name": "@flxbl-io/release-domain",
   "version": "1.0.0",
-  "description": "Deploy a release candidate to a target environment via SFP Server",
-  "author": "flxbl-io",
-  "license": "SEE LICENSE IN LICENSE",
+  "description": "GitHub Action to deploy a release candidate to a target environment with locking",
+  "main": "dist/index.js",
+  "scripts": {
+    "build": "tsc && ncc build src/index.ts -o dist --source-map --minify && ncc build src/cleanup.ts -o dist/cleanup --source-map --minify && mv dist/cleanup/index.js dist/cleanup.js && rm -rf dist/cleanup",
+    "test": "jest",
+    "test:coverage": "jest --coverage",
+    "lint": "eslint src/**/*.ts",
+    "format": "prettier --write src/**/*.ts",
+    "all": "npm run format && npm run lint && npm run test && npm run build"
+  },
   "repository": {
     "type": "git",
-    "url": "https://github.com/flxbl-io/release-domain.git"
+    "url": "git+https://github.com/flxbl-io/release-domain.git"
   },
   "keywords": [
     "github-action",
@@ -15,5 +22,31 @@
     "release",
     "deployment",
     "flxbl"
-  ]
+  ],
+  "author": "flxbl-io",
+  "license": "SEE LICENSE IN LICENSE",
+  "bugs": {
+    "url": "https://github.com/flxbl-io/release-domain/issues"
+  },
+  "homepage": "https://github.com/flxbl-io/release-domain#readme",
+  "dependencies": {
+    "@actions/core": "^1.11.1",
+    "@actions/exec": "^1.1.1"
+  },
+  "devDependencies": {
+    "@jest/globals": "^29.7.0",
+    "@types/jest": "^29.5.14",
+    "@types/node": "^22.10.2",
+    "@typescript-eslint/eslint-plugin": "^8.0.0",
+    "@typescript-eslint/parser": "^8.0.0",
+    "@vercel/ncc": "^0.38.3",
+    "eslint": "^8.57.0",
+    "jest": "^29.7.0",
+    "prettier": "^3.4.2",
+    "ts-jest": "^29.2.5",
+    "typescript": "^5.7.2"
+  },
+  "engines": {
+    "node": ">=20"
+  }
 }

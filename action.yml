@@ -1,5 +1,5 @@
 name: "Release Domain"
-description: "Deploy a release candidate to a target environment"
+description: "Deploy a release candidate to a target environment with locking"
 author: "flxbl-io"
 
 branding:
@@ -46,167 +46,31 @@ inputs:
     description: "Comma-separated package version overrides (e.g., 'pkg-a=1.2.3,pkg-b=2.0.0')"
     required: false
     default: ""
+  lock:
+    description: "Lock environment before release (auto-unlock on completion)"
+    required: false
+    default: "true"
+  lock-timeout:
+    description: "Minutes to wait for lock acquisition (0 = wait indefinitely)"
+    required: false
+    default: "15"
+  lock-duration:
+    description: "Duration in minutes to hold the lock"
+    required: false
+    default: "120"
+  dry-run:
+    description: "Dry-run mode (no lock, no deploy)"
+    required: false
+    default: "false"
 
 outputs:
   deployment-status:
     description: "Status of the deployment (success/failed)"
-    value: ${{ steps.release.outputs.status }}
+  ticket-id:
+    description: "Lock ticket ID (if locking was enabled)"
 
 runs:
-  using: "composite"
-
-  steps:
-    - name: Print header
-      shell: bash
-      run: |
-        echo "------------------------------------------------------------------------------------------"
-        echo "flxbl-actions  -- ❤️  by flxbl.io ❤️  -Version:1.0.0"
-        echo "------------------------------------------------------------------------------------------"
-        echo "Action        : release-domain"
-        echo "Repository    : ${{ inputs.repository }}"
-        echo "Environment   : ${{ inputs.environment }}"
-        echo "Release Candidate: ${{ inputs.release-candidate }}"
-        echo "Domain        : ${{ inputs.domain }}"
-        echo "SFP Server    : ${{ inputs.sfp-server-url }}"
-        if [[ -n "${{ inputs.exclude-packages }}" ]]; then
-          echo "Exclude       : ${{ inputs.exclude-packages }}"
-        fi
-        if [[ -n "${{ inputs.override-packages }}" ]]; then
-          echo "Override      : ${{ inputs.override-packages }}"
-        fi
-        echo "------------------------------------------------------------------------------------------"
-        echo ""
-
-    - name: Authenticate to DevHub
-      shell: bash
-      run: |
-        echo "Authenticating to default DevHub via SFP Server..."
-        sfp org login --server --default-devhub --alias ${{ inputs.devhub-alias }} \
-          --sfp-server-url "${{ inputs.sfp-server-url }}" \
-          -t "${{ inputs.sfp-server-token }}"
-        echo "DevHub authentication successful"
-
-    - name: Authenticate to environment
-      shell: bash
-      run: |
-        echo "Authenticating to environment: ${{ inputs.environment }}..."
-        sfp server environment login \
-          --name "${{ inputs.environment }}" \
-          --repository "${{ inputs.repository }}" \
-          --sfp-server-url "${{ inputs.sfp-server-url }}" \
-          -t "${{ inputs.sfp-server-token }}"
-        echo "Environment authentication successful"
-
-    - name: Fetch and prepare release definition
-      id: prepare
-      if: inputs.exclude-packages != '' || inputs.override-packages != ''
-      shell: bash
-      run: |
-        echo "Fetching release candidate for modification..."
-        RELEASE_DEF_FILE=$(mktemp --suffix=.yml)
-        echo "release-def-file=$RELEASE_DEF_FILE" >> $GITHUB_OUTPUT
-
-        sfp releasecandidate fetch \
-          -n "${{ inputs.release-candidate }}" \
-          -c "${{ inputs.domain }}" \
-          --repository "${{ inputs.repository }}" \
-          --sfp-server-url "${{ inputs.sfp-server-url }}" \
-          -t "${{ inputs.sfp-server-token }}" \
-          -o "$RELEASE_DEF_FILE"
-
-        echo "Release definition fetched to: $RELEASE_DEF_FILE"
-        echo "Original contents:"
-        cat "$RELEASE_DEF_FILE"
-
-        # Process exclusions
-        if [[ -n "${{ inputs.exclude-packages }}" ]]; then
-          echo ""
-          echo "Excluding packages: ${{ inputs.exclude-packages }}"
-          IFS=',' read -ra EXCLUDE_PKGS <<< "${{ inputs.exclude-packages }}"
-          for pkg in "${EXCLUDE_PKGS[@]}"; do
-            pkg=$(echo "$pkg" | xargs)  # trim whitespace
-            echo "  Removing: $pkg"
-            # Remove the package line from artifacts section
-            sed -i.bak "/^[[:space:]]*${pkg}:/d" "$RELEASE_DEF_FILE"
-          done
-        fi
-
-        # Process overrides
-        if [[ -n "${{ inputs.override-packages }}" ]]; then
-          echo ""
-          echo "Overriding package versions: ${{ inputs.override-packages }}"
-          IFS=',' read -ra OVERRIDE_PKGS <<< "${{ inputs.override-packages }}"
-          for override in "${OVERRIDE_PKGS[@]}"; do
-            pkg=$(echo "$override" | cut -d'=' -f1 | xargs)
-            version=$(echo "$override" | cut -d'=' -f2 | xargs)
-            echo "  Setting $pkg to version $version"
-            # Replace the version for this package
-            sed -i.bak "s/^[[:space:]]*${pkg}:.*$/  ${pkg}: ${version}/" "$RELEASE_DEF_FILE"
-          done
-        fi
-
-        echo ""
-        echo "Modified release definition:"
-        cat "$RELEASE_DEF_FILE"
-        rm -f "${RELEASE_DEF_FILE}.bak"
-
-    - name: Deploy release candidate
-      id: release
-      shell: bash
-      run: |
-        echo "Deploying release candidate: ${{ inputs.release-candidate }} (domain: ${{ inputs.domain }})..."
-
-        # Check if we have a modified release definition
-        if [[ -n "${{ steps.prepare.outputs.release-def-file }}" ]]; then
-          echo "Using modified release definition file..."
-          CMD="sfp release \
-            -o \"${{ inputs.environment }}\" \
-            -p \"${{ steps.prepare.outputs.release-def-file }}\" \
-            --repository \"${{ inputs.repository }}\" \
-            --sfp-server-url \"${{ inputs.sfp-server-url }}\" \
-            -t \"${{ inputs.sfp-server-token }}\" \
-            -v \"${{ inputs.devhub-alias }}\" \
-            --waittime \"${{ inputs.wait-time }}\""
-        else
-          CMD="sfp release \
-            -o \"${{ inputs.environment }}\" \
-            --releasecandidate \"${{ inputs.release-candidate }}\" \
-            --releasecandidatedomain \"${{ inputs.domain }}\" \
-            --repository \"${{ inputs.repository }}\" \
-            --sfp-server-url \"${{ inputs.sfp-server-url }}\" \
-            -t \"${{ inputs.sfp-server-token }}\" \
-            -v \"${{ inputs.devhub-alias }}\" \
-            --waittime \"${{ inputs.wait-time }}\""
-        fi
-
-        if [[ -n "${{ inputs.tag }}" ]]; then
-          CMD="$CMD --tag \"${{ inputs.tag }}\""
-        fi
-
-        if eval $CMD; then
-          echo "status=success" >> $GITHUB_OUTPUT
-          echo "Release deployment completed successfully"
-        else
-          echo "status=failed" >> $GITHUB_OUTPUT
-          echo "Release deployment failed"
-          exit 1
-        fi
-
-    - name: Summary
-      shell: bash
-      run: |
-        echo ""
-        echo "------------------------------------------------------------------------------------------"
-        echo "Release Summary"
-        echo "------------------------------------------------------------------------------------------"
-        echo "Environment   : ${{ inputs.environment }}"
-        echo "Release       : ${{ inputs.release-candidate }}"
-        echo "Domain        : ${{ inputs.domain }}"
-        if [[ -n "${{ inputs.exclude-packages }}" ]]; then
-          echo "Excluded      : ${{ inputs.exclude-packages }}"
-        fi
-        if [[ -n "${{ inputs.override-packages }}" ]]; then
-          echo "Overrides     : ${{ inputs.override-packages }}"
-        fi
-        echo "Status        : ${{ steps.release.outputs.status }}"
-        echo "------------------------------------------------------------------------------------------"
+  using: "node20"
+  main: "dist/index.js"
+  post: "dist/cleanup.js"
+  post-if: "always()"
