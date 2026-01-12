@@ -30,14 +30,31 @@ async function execCommand(
   let stdout = '';
   let stderr = '';
 
+  // Limit output buffer to prevent memory issues
+  const maxBuffer = 10 * 1024 * 1024; // 10MB
+  let stdoutTruncated = false;
+  let stderrTruncated = false;
+
   const exitCode = await exec.exec(command, args, {
     silent,
     listeners: {
       stdout: (data: Buffer) => {
-        stdout += data.toString();
+        if (!stdoutTruncated) {
+          stdout += data.toString();
+          if (stdout.length > maxBuffer) {
+            stdout = stdout.substring(0, maxBuffer) + '\n... [output truncated]';
+            stdoutTruncated = true;
+          }
+        }
       },
       stderr: (data: Buffer) => {
-        stderr += data.toString();
+        if (!stderrTruncated) {
+          stderr += data.toString();
+          if (stderr.length > maxBuffer) {
+            stderr = stderr.substring(0, maxBuffer) + '\n... [output truncated]';
+            stderrTruncated = true;
+          }
+        }
       }
     },
     ignoreReturnCode: true

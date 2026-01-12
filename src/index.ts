@@ -66,19 +66,36 @@ function printHeader(inputs: Inputs): void {
 async function execCommand(
   command: string,
   args: string[],
-  options: { silent?: boolean; ignoreReturnCode?: boolean } = {}
+  options: { silent?: boolean; ignoreReturnCode?: boolean; maxBuffer?: number } = {}
 ): Promise<ExecOutput> {
   let stdout = '';
   let stderr = '';
+
+  // Limit output buffer to prevent memory issues with heavy logs
+  const maxBuffer = options.maxBuffer ?? 10 * 1024 * 1024; // 10MB default
+  let stdoutTruncated = false;
+  let stderrTruncated = false;
 
   const exitCode = await exec.exec(command, args, {
     silent: options.silent ?? false,
     listeners: {
       stdout: (data: Buffer) => {
-        stdout += data.toString();
+        if (!stdoutTruncated) {
+          stdout += data.toString();
+          if (stdout.length > maxBuffer) {
+            stdout = stdout.substring(0, maxBuffer) + '\n... [output truncated]';
+            stdoutTruncated = true;
+          }
+        }
       },
       stderr: (data: Buffer) => {
-        stderr += data.toString();
+        if (!stderrTruncated) {
+          stderr += data.toString();
+          if (stderr.length > maxBuffer) {
+            stderr = stderr.substring(0, maxBuffer) + '\n... [output truncated]';
+            stderrTruncated = true;
+          }
+        }
       }
     },
     ignoreReturnCode: options.ignoreReturnCode ?? true
