@@ -76,10 +76,11 @@ runs:
       shell: bash
       run: |
         echo "Authenticating to environment: ${{ inputs.environment }}..."
-        sfp org login --server --alias "${{ inputs.environment }}" \
+        sfp server environment login \
+          --name "${{ inputs.environment }}" \
+          --repository "${{ inputs.repository }}" \
           --sfp-server-url "${{ inputs.sfp-server-url }}" \
-          -t "${{ inputs.sfp-server-token }}" \
-          --environment "${{ inputs.environment }}"
+          -t "${{ inputs.sfp-server-token }}"
         echo "Environment authentication successful"
 
     - name: Deploy release candidate
