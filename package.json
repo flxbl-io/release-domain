@@ -1,0 +1,19 @@
+{
+  "name": "@flxbl-io/release",
+  "version": "1.0.0",
+  "description": "Deploy a release candidate to a target environment via SFP Server",
+  "author": "flxbl-io",
+  "license": "SEE LICENSE IN LICENSE",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/flxbl-io/release.git"
+  },
+  "keywords": [
+    "github-action",
+    "sfp",
+    "salesforce",
+    "release",
+    "deployment",
+    "flxbl"
+  ]
+}

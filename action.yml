@@ -1,0 +1,125 @@
+name: "Release"
+description: "Deploy a release candidate to a target environment"
+author: "flxbl-io"
+
+branding:
+  icon: "upload-cloud"
+  color: "green"
+
+inputs:
+  sfp-server-url:
+    description: "URL to the SFP Server instance (e.g., https://your-org.flxbl.io)"
+    required: true
+  sfp-server-token:
+    description: "Token for SFP Server authentication"
+    required: true
+  environment:
+    description: "Target environment name to deploy to"
+    required: true
+  release-candidate:
+    description: "Name of the release candidate to deploy"
+    required: true
+  domain:
+    description: "Domain (release config name) of the release candidate"
+    required: true
+  repository:
+    description: "Repository name (format: owner/repo)"
+    required: false
+    default: ${{ github.repository }}
+  devhub-alias:
+    description: "Alias for the DevHub org (needed for unlocked package installations)"
+    required: false
+    default: "devhub"
+  wait-time:
+    description: "Wait time in minutes for package installation"
+    required: false
+    default: "120"
+  tag:
+    description: "Tag the release for identification in metrics"
+    required: false
+    default: ""
+
+outputs:
+  deployment-status:
+    description: "Status of the deployment (success/failed)"
+    value: ${{ steps.release.outputs.status }}
+
+runs:
+  using: "composite"
+
+  steps:
+    - name: Print header
+      shell: bash
+      run: |
+        echo "------------------------------------------------------------------------------------------"
+        echo "flxbl-actions  -- ❤️  by flxbl.io ❤️  -Version:1.0.0"
+        echo "------------------------------------------------------------------------------------------"
+        echo "Action        : release"
+        echo "Repository    : ${{ inputs.repository }}"
+        echo "Environment   : ${{ inputs.environment }}"
+        echo "Release Candidate: ${{ inputs.release-candidate }}"
+        echo "Domain        : ${{ inputs.domain }}"
+        echo "SFP Server    : ${{ inputs.sfp-server-url }}"
+        echo "------------------------------------------------------------------------------------------"
+        echo ""
+
+    - name: Authenticate to DevHub
+      shell: bash
+      run: |
+        echo "Authenticating to default DevHub via SFP Server..."
+        sfp org login --server --default-devhub --alias ${{ inputs.devhub-alias }} \
+          --sfp-server-url "${{ inputs.sfp-server-url }}" \
+          -t "${{ inputs.sfp-server-token }}"
+        echo "DevHub authentication successful"
+
+    - name: Authenticate to environment
+      shell: bash
+      run: |
+        echo "Authenticating to environment: ${{ inputs.environment }}..."
+        sfp org login --server --alias "${{ inputs.environment }}" \
+          --sfp-server-url "${{ inputs.sfp-server-url }}" \
+          -t "${{ inputs.sfp-server-token }}" \
+          --environment "${{ inputs.environment }}"
+        echo "Environment authentication successful"
+
+    - name: Deploy release candidate
+      id: release
+      shell: bash
+      run: |
+        echo "Deploying release candidate: ${{ inputs.release-candidate }} (domain: ${{ inputs.domain }})..."
+
+        CMD="sfp release \
+          -o \"${{ inputs.environment }}\" \
+          --releasecandidate \"${{ inputs.release-candidate }}\" \
+          --releasecandidatedomain \"${{ inputs.domain }}\" \
+          --repository \"${{ inputs.repository }}\" \
+          --sfp-server-url \"${{ inputs.sfp-server-url }}\" \
+          -t \"${{ inputs.sfp-server-token }}\" \
+          -v \"${{ inputs.devhub-alias }}\" \
+          --waittime \"${{ inputs.wait-time }}\""
+
+        if [[ -n "${{ inputs.tag }}" ]]; then
+          CMD="$CMD --tag \"${{ inputs.tag }}\""
+        fi
+
+        if eval $CMD; then
+          echo "status=success" >> $GITHUB_OUTPUT
+          echo "Release deployment completed successfully"
+        else
+          echo "status=failed" >> $GITHUB_OUTPUT
+          echo "Release deployment failed"
+          exit 1
+        fi
+
+    - name: Summary
+      shell: bash
+      run: |
+        echo ""
+        echo "------------------------------------------------------------------------------------------"
+        echo "Release Summary"
+        echo "------------------------------------------------------------------------------------------"
+        echo "Environment   : ${{ inputs.environment }}"
+        echo "Release       : ${{ inputs.release-candidate }}"
+        echo "Domain        : ${{ inputs.domain }}"
+        echo "Status        : ${{ steps.release.outputs.status }}"
+        echo "------------------------------------------------------------------------------------------"
