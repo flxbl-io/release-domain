@@ -2,7 +2,7 @@ import * as core from '@actions/core';
 import * as exec from '@actions/exec';
 
 const VERSION = '1.0.0';
-const ACTION_NAME = 'release-domain (cleanup)';
+const ACTION_NAME = 'release-domains (cleanup)';
 
 interface ExecOutput {
   stdout: string;

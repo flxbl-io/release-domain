@@ -1,9 +1,10 @@
 {
-  "name": "@flxbl-io/release-domain",
+  "name": "@flxbl-io/release-domains",
   "version": "1.0.0",
-  "description": "GitHub Action to deploy a release candidate to a target environment with locking",
+  "description": "GitHub Action to deploy release candidates to a target environment with locking",
   "main": "dist/index.js",
   "scripts": {
+    "prebuild": "rm -rf src/shared && cp -r ../shared/src src/shared",
     "build": "tsc && ncc build src/index.ts -o dist --source-map --minify && ncc build src/cleanup.ts -o dist/cleanup --source-map --minify && mv dist/cleanup/index.js dist/cleanup.js && rm -rf dist/cleanup",
     "test": "jest",
     "test:coverage": "jest --coverage",
@@ -13,7 +14,7 @@
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/flxbl-io/release-domain.git"
+    "url": "git+https://github.com/flxbl-io/release-domains.git"
   },
   "keywords": [
     "github-action",
@@ -26,9 +27,9 @@
   "author": "flxbl-io",
   "license": "SEE LICENSE IN LICENSE",
   "bugs": {
-    "url": "https://github.com/flxbl-io/release-domain/issues"
+    "url": "https://github.com/flxbl-io/release-domains/issues"
   },
-  "homepage": "https://github.com/flxbl-io/release-domain#readme",
+  "homepage": "https://github.com/flxbl-io/release-domains#readme",
   "dependencies": {
     "@actions/core": "^1.11.1",
     "@actions/exec": "^1.1.1"

@@ -1,5 +1,5 @@
-name: "Release Domain"
-description: "Deploy a release candidate to a target environment with locking"
+name: "Release Domains"
+description: "Deploy release candidates to a target environment with locking"
 author: "flxbl-io"
 
 branding:
@@ -16,11 +16,8 @@ inputs:
   environment:
     description: "Target environment name to deploy to"
     required: true
-  release-candidate:
-    description: "Name of the release candidate to deploy"
-    required: true
-  domain:
-    description: "Domain (release config name) of the release candidate"
+  release-candidates:
+    description: "Release candidate(s) in format 'domain:name' (e.g., 'core:RC-1' or 'core:RC-1,sales:RC-2')"
     required: true
   repository:
     description: "Repository name (format: owner/repo)"
@@ -59,15 +56,31 @@ inputs:
     required: false
     default: "120"
   dry-run:
-    description: "Dry-run mode (no lock, no deploy)"
+    description: "Dry-run mode - compare and generate changelog without deploying"
     required: false
     default: "false"
+  generate-changelog:
+    description: "Generate changelog during release"
+    required: false
+    default: "true"
+  update-issue:
+    description: "Post changelog as issue/PR comment"
+    required: false
+    default: "true"
+  issue-number:
+    description: "Issue/PR number for comments (auto-detected if not provided)"
+    required: false
+    default: ""
 
 outputs:
   deployment-status:
-    description: "Status of the deployment (success/failed)"
+    description: "Status of the deployment (success/failed/dry-run)"
   ticket-id:
     description: "Lock ticket ID (if locking was enabled)"
+  changelog-path:
+    description: "Path to generated changelog markdown file"
+  changelog-json-path:
+    description: "Path to generated changelog JSON file"
 
 runs:
   using: "node20"
