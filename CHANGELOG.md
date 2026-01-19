@@ -1,5 +1,24 @@
 # Changelog
 
+## [2.0.0](https://github.com/flxbl-io/release-domains/compare/v1.0.0...v2.0.0) (2026-01-19)
+
+
+### ⚠ BREAKING CHANGES
+
+* Input changed from domain + release-candidate to release-candidates
+
+### Features
+
+* convert to Node.js with integrated environment locking ([639d334](https://github.com/flxbl-io/release-domains/commit/639d334b8fe6f9a6b60ab3b51316069a725e1d9e))
+* rename to release-domains and support multiple release candidates ([8d7708a](https://github.com/flxbl-io/release-domains/commit/8d7708af1adbe2778042a38f32786035df3bc94c))
+
+
+### Bug Fixes
+
+* add output buffer limits to prevent memory issues ([9a18515](https://github.com/flxbl-io/release-domains/commit/9a1851536164ba3eb55a9ffa88e1a303018b6f89))
+* increase lock-timeout default to 120 minutes ([cdc494e](https://github.com/flxbl-io/release-domains/commit/cdc494e735df670f4ae1435000c09d7fb56b822e))
+* support exclude-packages and override-packages for single-domain releases ([714d2e0](https://github.com/flxbl-io/release-domains/commit/714d2e0aafe25a836cacb26b91eb027bbc0a530b))
+
 ## 1.0.0 (2026-01-12)
 
 

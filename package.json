@@ -1,6 +1,6 @@
 {
   "name": "@flxbl-io/release-domains",
-  "version": "1.0.0",
+  "version": "2.0.0",
   "description": "GitHub Action to deploy release candidates to a target environment with locking",
   "main": "dist/index.js",
   "scripts": {
