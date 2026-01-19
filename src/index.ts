@@ -1,6 +1,7 @@
 import * as core from '@actions/core';
 import * as exec from '@actions/exec';
 import * as fs from 'fs';
+import * as os from 'os';
 import * as path from 'path';
 import { fetchGitHubToken } from './shared/github-token';
 import { getGitHubContext } from './shared/github-context';
@@ -190,6 +191,91 @@ async function authEnvironment(inputs: Inputs): Promise<void> {
   core.info('Environment authentication successful');
 }
 
+/**
+ * Check if release-candidates contains multiple domains (comma-separated)
+ */
+function isMultiDomainRelease(releaseCandidates: string): boolean {
+  return releaseCandidates.includes(',');
+}
+
+/**
+ * Fetch a release candidate definition from the server
+ */
+async function fetchReleaseCandidate(inputs: Inputs): Promise<string> {
+  core.info('Fetching release candidate for modification...');
+
+  const tempDir = os.tmpdir();
+  const releaseDefFile = path.join(tempDir, `release-def-${Date.now()}.yml`);
+
+  const args = [
+    'releasecandidate', 'fetch',
+    '-n', inputs.releaseCandidates,  // Now uses domain:name format
+    '--repository', inputs.repository,
+    '--sfp-server-url', inputs.sfpServerUrl,
+    '-t', inputs.sfpServerToken,
+    '-o', releaseDefFile
+  ];
+
+  const result = await execCommand('sfp', args);
+
+  if (result.exitCode !== 0) {
+    throw new Error(`Failed to fetch release candidate: ${result.stderr || result.stdout}`);
+  }
+
+  core.info(`Release definition fetched to: ${releaseDefFile}`);
+  return releaseDefFile;
+}
+
+/**
+ * Modify a release definition to exclude packages or override versions
+ */
+function modifyReleaseDefinition(
+  releaseDefFile: string,
+  excludePackages: string,
+  overridePackages: string
+): void {
+  let content = fs.readFileSync(releaseDefFile, 'utf8');
+
+  core.info('Original release definition:');
+  console.log(content);
+
+  // Process exclusions
+  if (excludePackages) {
+    core.info('');
+    core.info(`Excluding packages: ${excludePackages}`);
+    const packages = excludePackages.split(',').map(p => p.trim());
+    for (const pkg of packages) {
+      core.info(`  Removing: ${pkg}`);
+      // Remove the package line from artifacts section
+      const regex = new RegExp(`^\\s*${pkg}:.*$`, 'gm');
+      content = content.replace(regex, '');
+    }
+  }
+
+  // Process overrides
+  if (overridePackages) {
+    core.info('');
+    core.info(`Overriding package versions: ${overridePackages}`);
+    const overrides = overridePackages.split(',').map(o => o.trim());
+    for (const override of overrides) {
+      const [pkg, version] = override.split('=').map(s => s.trim());
+      core.info(`  Setting ${pkg} to version ${version}`);
+      // Replace the version for this package
+      const regex = new RegExp(`^(\\s*)${pkg}:.*$`, 'gm');
+      content = content.replace(regex, `$1${pkg}: ${version}`);
+    }
+  }
+
+  // Remove empty lines created by exclusions
+  content = content.replace(/^\s*[\r\n]/gm, '');
+
+  core.info('');
+  core.info('Modified release definition:');
+  console.log(content);
+
+  fs.writeFileSync(releaseDefFile, content);
+}
+
 interface DeployResult {
   success: boolean;
   changelogDir?: string;
@@ -198,7 +284,7 @@ interface DeployResult {
 
 const CHANGELOG_DIR = '.sfpowerscripts/changelog';
 
-async function deployRelease(inputs: Inputs, dryRun: boolean = false): Promise<DeployResult> {
+async function deployRelease(inputs: Inputs, dryRun: boolean = false, releaseDefFile?: string): Promise<DeployResult> {
   if (dryRun) {
     core.info(`DRY-RUN: Comparing release candidates ${inputs.releaseCandidates} to ${inputs.environment}...`);
   } else {
@@ -207,8 +293,12 @@ async function deployRelease(inputs: Inputs, dryRun: boolean = false): Promise<D
 
   const args: string[] = ['release', '-o', inputs.environment];
 
-  // Add release candidates in new format: --releasecandidate domain:name,domain2:name2
-  args.push('--releasecandidate', inputs.releaseCandidates);
+  // Use release definition file if provided (for exclude/override), otherwise use --releasecandidate
+  if (releaseDefFile) {
+    args.push('-p', releaseDefFile);
+  } else {
+    args.push('--releasecandidate', inputs.releaseCandidates);
+  }
 
   args.push(
     '--repository', inputs.repository,
@@ -442,10 +532,12 @@ export async function run(): Promise<void> {
 
     printHeader(inputs);
 
-    // Note: exclude-packages and override-packages are not supported with the new format
-    // as they require fetching and modifying individual release definitions
-    if (inputs.excludePackages || inputs.overridePackages) {
-      core.warning('exclude-packages and override-packages are not yet supported with multiple release candidates');
+    // Check if exclude/override is requested with multiple domains
+    const isMultiDomain = isMultiDomainRelease(inputs.releaseCandidates);
+    const needsModification = inputs.excludePackages || inputs.overridePackages;
+
+    if (needsModification && isMultiDomain) {
+      core.warning('exclude-packages and override-packages are not supported with multiple release candidates. These options will be ignored.');
     }
 
     // Dry-run mode - run release with --dryrun flag (no lock, no deploy, but generates changelog)
@@ -456,8 +548,20 @@ export async function run(): Promise<void> {
       await authDevHub(inputs);
       await authEnvironment(inputs);
 
+      // Fetch and modify release candidate if needed (single domain only)
+      let releaseDefFile: string | undefined;
+      if (needsModification && !isMultiDomain) {
+        releaseDefFile = await fetchReleaseCandidate(inputs);
+        modifyReleaseDefinition(releaseDefFile, inputs.excludePackages, inputs.overridePackages);
+      }
+
       // Run release with --dryrun to compare and generate changelog
-      const dryRunResult = await deployRelease(inputs, true);
+      const dryRunResult = await deployRelease(inputs, true, releaseDefFile);
+
+      // Clean up temp file
+      if (releaseDefFile && fs.existsSync(releaseDefFile)) {
+        fs.unlinkSync(releaseDefFile);
+      }
 
       core.setOutput('deployment-status', 'dry-run');
 
@@ -494,8 +598,20 @@ export async function run(): Promise<void> {
     // Step 3: Authenticate to environment
     await authEnvironment(inputs);
 
-    // Step 4: Deploy release (with changelog generation if enabled)
-    const deployResult = await deployRelease(inputs);
+    // Step 4: Fetch and modify release candidate if needed (single domain only)
+    let releaseDefFile: string | undefined;
+    if (needsModification && !isMultiDomain) {
+      releaseDefFile = await fetchReleaseCandidate(inputs);
+      modifyReleaseDefinition(releaseDefFile, inputs.excludePackages, inputs.overridePackages);
+    }
+
+    // Step 5: Deploy release (with changelog generation if enabled)
+    const deployResult = await deployRelease(inputs, false, releaseDefFile);
+
+    // Clean up temp file
+    if (releaseDefFile && fs.existsSync(releaseDefFile)) {
+      fs.unlinkSync(releaseDefFile);
+    }
 
     const status = deployResult.success ? 'success' : 'failed';
     core.setOutput('deployment-status', status);
