@@ -8,7 +8,7 @@
 #   - Local sfp-pro compose stack running (auto-detected per workspace)
 #
 # Usage:
-#   ./test-with-act.sh <project-path> environment=<name> release-candidate=<name> domain=<name> [options]
+#   ./test-with-act.sh <project-path> environment=<name> release-candidates=<domain:name> [options]
 #
 # Options:
 #   sfp-server-url=<url>        Override SFP Server URL (default: auto-detect)
@@ -16,6 +16,7 @@
 #   repository=<owner/repo>     Repository identifier (default: derived from project path)
 #   exclude-packages=<list>     Comma-separated packages to exclude
 #   override-packages=<list>    Comma-separated version overrides (pkg=version)
+#   dry-run=<true|false>        Run in dry-run mode (default: false)
 
 set -e
 
@@ -35,11 +36,11 @@ source "$FLXBL_ACTIONS_ROOT/scripts/detect-sfp-stack.sh"
 
 # Defaults (after sourcing, so .env values are available)
 ENVIRONMENT=""
-RELEASE_CANDIDATE=""
-DOMAIN=""
+RELEASE_CANDIDATES=""
 REPOSITORY="$(basename $(dirname $PROJECT_PATH))/$(basename $PROJECT_PATH)"
 EXCLUDE_PACKAGES=""
 OVERRIDE_PACKAGES=""
+DRY_RUN="false"
 
 # Parse arguments (override .env / auto-detected values)
 for arg in "$@"; do
@@ -49,27 +50,26 @@ for arg in "$@"; do
     sfp-server-url) SFP_SERVER_URL="$val" ;;
     sfp-server-token) SFP_SERVER_TOKEN="$val" ;;
     environment) ENVIRONMENT="$val" ;;
-    release-candidate) RELEASE_CANDIDATE="$val" ;;
-    domain) DOMAIN="$val" ;;
+    release-candidates) RELEASE_CANDIDATES="$val" ;;
     repository) REPOSITORY="$val" ;;
     exclude-packages) EXCLUDE_PACKAGES="$val" ;;
     override-packages) OVERRIDE_PACKAGES="$val" ;;
+    dry-run) DRY_RUN="$val" ;;
   esac
 done
 
 [[ -z "$ENVIRONMENT" ]] && { echo "Error: environment required"; exit 1; }
-[[ -z "$RELEASE_CANDIDATE" ]] && { echo "Error: release-candidate required"; exit 1; }
-[[ -z "$DOMAIN" ]] && { echo "Error: domain required"; exit 1; }
+[[ -z "$RELEASE_CANDIDATES" ]] && { echo "Error: release-candidates required (format: domain:name or domain1:name1,domain2:name2)"; exit 1; }
 
 # Run detection (uses values from .env or args if set)
 detect_sfp_stack || exit 1
 
 # Setup
 TEMP_DIR=$(mktemp -d)
-trap "rm -rf $TEMP_DIR $PROJECT_PATH/.github/actions/release" EXIT
+trap "rm -rf $TEMP_DIR $PROJECT_PATH/.github/actions/release-domains" EXIT
 
 mkdir -p "$PROJECT_PATH/.github/actions"
-cp -r "$SCRIPT_DIR" "$PROJECT_PATH/.github/actions/release"
+cp -r "$SCRIPT_DIR" "$PROJECT_PATH/.github/actions/release-domains"
 
 # Build optional inputs
 OPTIONAL_INPUTS=""
@@ -92,14 +92,15 @@ jobs:
     container: $CLI_IMAGE
     steps:
       - uses: actions/checkout@v4
-      - uses: ./.github/actions/release
+      - uses: ./.github/actions/release-domains
         with:
           sfp-server-url: \${{ secrets.SFP_SERVER_URL }}
           sfp-server-token: \${{ secrets.SFP_SERVER_TOKEN }}
           environment: "$ENVIRONMENT"
-          release-candidate: "$RELEASE_CANDIDATE"
-          domain: "$DOMAIN"
-          repository: "$REPOSITORY"$OPTIONAL_INPUTS
+          release-candidates: "$RELEASE_CANDIDATES"
+          repository: "$REPOSITORY"
+          dry-run: "$DRY_RUN"
+          lock: "false"$OPTIONAL_INPUTS
 EOF
 
 cat > "$TEMP_DIR/.secrets" << EOF
@@ -112,8 +113,8 @@ echo "Running with act (Docker)..."
 echo "  Image: $CLI_IMAGE"
 echo "  Server: $SFP_SERVER_URL"
 echo "  Environment: $ENVIRONMENT"
-echo "  Release Candidate: $RELEASE_CANDIDATE"
-echo "  Domain: $DOMAIN"
+echo "  Release Candidates: $RELEASE_CANDIDATES"
+echo "  Dry Run: $DRY_RUN"
 if [[ -n "$EXCLUDE_PACKAGES" ]]; then
   echo "  Exclude: $EXCLUDE_PACKAGES"
 fi

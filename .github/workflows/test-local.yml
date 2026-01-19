@@ -1,0 +1,47 @@
+name: Test Release Domains (Local)
+
+on:
+  workflow_dispatch:
+    inputs:
+      release-candidates:
+        description: 'Release candidates (domain:name)'
+        required: true
+        default: 'core:test-release-1768456515982'
+      environment:
+        description: 'Target environment'
+        required: true
+        default: 'QA'
+      dry-run:
+        description: 'Dry run mode'
+        required: true
+        default: 'true'
+
+jobs:
+  test-release:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install sfp CLI
+        run: |
+          npm install -g @flxbl-io/sfp@alpha
+          sfp --version
+
+      - name: Test Release Domains Action
+        uses: ./
+        with:
+          sfp-server-url: http://host.docker.internal:4392
+          sfp-server-token: 00000000-0000-0000-0000-000000000005
+          repository: flxbl-io/sf-core
+          environment: ${{ github.event.inputs.environment }}
+          release-candidates: ${{ github.event.inputs.release-candidates }}
+          dry-run: ${{ github.event.inputs.dry-run }}
+          lock: 'false'
+          generate-changelog: 'true'
+          update-issue: 'false'
